@@ -1,58 +1,109 @@
 services:
-
+  #服务名称，非固定可修改
+  #用于其他服务要引用的时候，比如：depends_on,比如：host(postgres://POSTGRES_USER:POSTGRES_PASSWORD@db:5432/POSTGRES_DB)
+  #用于docker compose命令指定服务的时候，比如：docker-compose logs -f db
   db:
-    image: postgres:12
+    image: crpi-iay62pbhw1a58p10.cn-hangzhou.personal.cr.aliyuncs.com/visage-namespace/postgres:12
+    # 重启策略：always, unless-stopped, on-failure
+    # always: 主机重启时或者非正常退出时，容器总是重启
+    # on-failure: 只有在容器非正常退出时才会重启
     restart: always
+    # 定义服务的健康检查规则。健康检查会定期执行用户指定的命令，以确定容器是否处于“健康”状态。
     healthcheck:
+      # CMD-SHELL：表示使用 shell 执行命令，允许更复杂的语法（如管道和环境变量）。
+      # pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}：检查 PostgreSQL 数据库是否可以正常连接。-U ${POSTGRES_USER}：使用环境变量定义的 PostgreSQL 用户。-d ${POSTGRES_DB}：连接到指定的数据库。
+      # 如果命令返回退出码为 0，表示健康检查通过；非 0 表示失败。
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      # 表示每隔 10 秒执行一次健康检查。
       interval: 10s
+      # 健康检查失败后尝试重试的次数。
       retries: 5
+      # 表示在容器启动后的 30 秒内，健康检查失败不算作失败
       start_period: 30s
+      # 如果健康检查命令执行时间超过 10 秒，健康检查会被视为失败。
       timeout: 10s
+    # 定义数据卷名称，对应着容器内的目录，数据卷实际名称为：full-stack-fastapi_app-db-data
     volumes:
       - app-db-data:/var/lib/postgresql/data/pgdata
+    # 它指定了容器内部加载的环境变量文件。这意味着在 docker-compose.yml 文件中使用 env_file 时，它只对容器内部有效，并不会直接影响宿主机的环境变量。
     env_file:
       - .env
+    # 给容器提供环境变量，将宿主机的环境变量传递给容器，容器内的应用可以访问到这些环境变量。
     environment:
+      # 定义 PostgreSQL 数据库的数据目录
       - PGDATA=/var/lib/postgresql/data/pgdata
+      # 从 .env 文件或环境中加载 POSTGRES_PASSWORD 的值，如果未设置该变量，抛出错误并提示 Variable not set。
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD?Variable not set}
       - POSTGRES_USER=${POSTGRES_USER?Variable not set}
       - POSTGRES_DB=${POSTGRES_DB?Variable not set}
 
   adminer:
-    image: adminer
+    image: crpi-iay62pbhw1a58p10.cn-hangzhou.personal.cr.aliyuncs.com/visage-namespace/adminer
     restart: always
+    # 定义 adminer 服务所属的网络，容器 adminer 将加入 traefik-public 和 default 网络。
     networks:
       - traefik-public
       - default
+    # 表示adminer依赖于db服务，只有当 db 启动后，adminer 服务才会启动。
+    # 注意：depends_on 并不保证依赖的服务完全启动后（例如数据库已就绪）再启动依赖服务。需要在 db 服务中定义健康检查规则才可以。
+    # 在start命令中不生效。
     depends_on:
       - db
     environment:
+      # 定义 adminer 预设的主题样式
       - ADMINER_DESIGN=pepa-linha-dark
+     # 作用于容器外部 ，如果在定义时使用 ${} 的占位符，它们依赖于宿主机环境变量或通过 --env-file（如docker-compose --env-file .env up -d）加载的外部环境文件中的变量,compose文件中的env-file无效。
+     # 用来为容器或服务添加元数据的配置项。元数据以键值对的形式表示，用于为容器提供附加信息，这些信息可以被编排工具或管理工具识别和使用。 
+     # 为编排工具提供配置（Traefik 配置路由规则）
+     # 与监控工具集成（Prometheus 抓取指标配置）
+     # 与日志工具集成（ELK 配置日志收集）
     labels:
+      # 启用 Traefik 服务发现，如果没有设置该标签，Traefik 将不会发现该服务。
       - traefik.enable=true
+      # 指定 Traefik 使用的网络,Traefik 和服务需要共享相同的 Docker 网络，才能通过 Traefik 路由流量到服务。
       - traefik.docker.network=traefik-public
+      # 设置约束条件，仅在具有特定标签（traefik-public）的节点上启用此路由规则。常用于多节点集群（如 Swarm 或 Kubernetes），指定路由在哪些节点生效
       - traefik.constraint-label=traefik-public
+      # 定义 HTTP 路由规则。指定请求匹配的主机名（域名），如 adminer.example.com。
       - traefik.http.routers.${STACK_NAME?Variable not set}-adminer-http.rule=Host(`adminer.${DOMAIN?Variable not set}`)
+      # 定义 HTTP 入口点，指定请求从哪个入口点进入。此处是 http。
       - traefik.http.routers.${STACK_NAME?Variable not set}-adminer-http.entrypoints=http
+      # 指定使用的中间件，此处使用 https-redirect 中间件，将 HTTP 请求重定向到 HTTPS。
       - traefik.http.routers.${STACK_NAME?Variable not set}-adminer-http.middlewares=https-redirect
+      # 定义 HTTPS 路由规则。指定请求匹配的主机名（域名），如 adminer.example.com。
       - traefik.http.routers.${STACK_NAME?Variable not set}-adminer-https.rule=Host(`adminer.${DOMAIN?Variable not set}`)
+      # 定义 HTTPS 入口点，指定请求从哪个入口点进入。此处是 https。
       - traefik.http.routers.${STACK_NAME?Variable not set}-adminer-https.entrypoints=https
+      # 启用 HTTPS（TLS）表示该路由需要通过 HTTPS 提供服务。
       - traefik.http.routers.${STACK_NAME?Variable not set}-adminer-https.tls=true
+      #指定 TLS 证书解析器（certificate resolver），如 le 表示使用 Let’s Encrypt。Traefik 会通过指定的解析器自动获取和续订 SSL 证书。
       - traefik.http.routers.${STACK_NAME?Variable not set}-adminer-https.tls.certresolver=le
+      #指定服务容器内部监听的端口（如 8080）。Traefik 会将请求从路由转发到容器的这个端口。
       - traefik.http.services.${STACK_NAME?Variable not set}-adminer.loadbalancer.server.port=8080
 
+  # 为什么prestart和backend服务要分开
+  # 1.职责分离，初始化任务和主要服务分开运行，便于管理和调试。prestart 只需在服务启动时运行一次，backend是常驻服务。
+  # 2.避免竞争条件，如果直接在 backend 服务中运行初始化脚本（如数据库迁移），可能会导致服务启动和依赖服务的准备状态不一致。
+  # 3.容错和重试机制，如果 prestart 脚本失败，可以独立重试，而不影响主要服务的运行。backend 服务仅在 prestart 成功完成后才启动，保证稳定性。
   prestart:
+    # ${DOCKER_IMAGE_BACKEND} 是镜像的名称，如果没有设置该变量，则会提示 “Variable not set” 并报错。
+    # ${TAG-latest} 表示使用 ${TAG} 环境变量作为版本号，若未设置，则默认为 latest。
     image: '${DOCKER_IMAGE_BACKEND?Variable not set}:${TAG-latest}'
     build:
+      # 指定了构建上下文为 ./backend，即服务的 Docker 镜像可以直接从指定路径下的 Dockerfile 构建。
       context: ./backend
     networks:
       - traefik-public
       - default
     depends_on:
       db:
+        # 1.service_started，默认值。表示依赖服务已启动（即容器处于 running 状态），不论其健康状态如何。
+	      # 2.service_healthy，表示依赖服务的健康检查（healthcheck）已通过，且健康状态为 healthy。健康检查需在依赖服务中定义，否则条件会失败。
+	      # 3.service_completed_successfully表示依赖服务运行后正常退出（容器状态为 exited 0）。
         condition: service_healthy
+        # 表示在依赖服务 db 的状态发生变化（如重启）后，当前服务也会重新启动。
         restart: true
+    # 指定在容器启动时运行 bash scripts/prestart.sh 脚本，通常用于执行初始化任务（如数据库迁移、种子数据加载等）。    
     command: bash scripts/prestart.sh
     env_file:
       - .env
@@ -142,6 +193,8 @@ services:
       - default
     build:
       context: ./frontend
+      # args 定义的是 构建时的变量，而非运行时的环境变量（运行时使用 environment）。
+      # 这些构建时参数可以通过 Dockerfile 的 ARG 指令获取，并在构建过程中使用。通常用于为镜像构建提供动态变量。
       args:
         - VITE_API_URL=https://api.${DOMAIN?Variable not set}
         - NODE_ENV=production
@@ -162,10 +215,15 @@ services:
 
       # Enable redirection for HTTP and HTTPS
       - traefik.http.routers.${STACK_NAME?Variable not set}-frontend-http.middlewares=https-redirect
+# 定义了一个名为 app-db-data 的卷（volume）。这个卷没有具体路径映射，但它可以被服务引用，用于持久化容器中的数据。
 volumes:
   app-db-data:
-
+# 定义了一个名为 traefik-public 的网络。
 networks:
   traefik-public:
-    # Allow setting it to false for testing
+    # external: true 表示该网络是外部网络，必须在 Docker Compose 之外手动创建，Compose 不会自动创建这个网络。
+    # 外部网络的用例：
+	  # 多个 Compose 项目共享一个网络（例如，Traefik 作为反向代理，需要与多个项目通信）。
+	  # 在需要跨项目通信时，使用外部网络。
+    # external: false 表示该网络是内部网络，Compose 会自动创建这个网络。这边自动创建了是因为被override.yml覆盖了
     external: true

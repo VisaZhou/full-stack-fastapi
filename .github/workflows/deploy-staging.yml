@@ -1,5 +1,5 @@
 name: Deploy to Staging
-
+# 工作流会在代码推送到 master 分支时触发。
 on:
   push:
     branches:
@@ -7,12 +7,15 @@ on:
 
 jobs:
   deploy:
-    # Do not deploy in the main repository, only in user projects
+    # 工作流只有在仓库的所有者不是 'fastapi' 时才会执行。用于防止在主仓库中直接部署，只允许用户的 fork 仓库触发这个部署工作流。
     if: github.repository_owner != 'fastapi'
     runs-on:
+    #：指定使用一个 自托管的 GitHub Actions Runner。这意味着运行程序不是在 GitHub 提供的虚拟机上执行，而是在你自己配置的机器上。
       - self-hosted
+      # 进一步限定 Runner 的标签，表明运行程序与 Staging 环境相关。
       - staging
     env:
+     # 变量值主要通过 GitHub Secrets 提供，用于存储敏感信息，避免泄露。
       ENVIRONMENT: staging
       DOMAIN: ${{ secrets.DOMAIN_STAGING }}
       STACK_NAME: ${{ secrets.STACK_NAME_STAGING }}
@@ -26,6 +29,7 @@ jobs:
       POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
       SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
     steps:
+    # 检出仓库代码到运行环境，使后续步骤可以使用代码文件。
       - name: Checkout
         uses: actions/checkout@v4
       - run: docker compose -f docker-compose.yml --project-name ${{ secrets.STACK_NAME_STAGING }} build

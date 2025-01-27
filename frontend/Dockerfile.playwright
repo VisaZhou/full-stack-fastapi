@@ -1,4 +1,5 @@
-FROM node:20
+# 是一个专门为 Playwright 测试框架编写的 Dockerfile，主要用于在容器中运行 Playwright 端到端测试（E2E 测试）。Playwright 是一个支持多浏览器自动化的测试工具，因此该 Dockerfile 需要配置浏览器环境和 Playwright 的依赖。
+FROM crpi-iay62pbhw1a58p10.cn-hangzhou.personal.cr.aliyuncs.com/visage-namespace/node:20
 
 WORKDIR /app
 
@@ -6,6 +7,8 @@ COPY package*.json /app/
 
 RUN npm install
 
+# 使用 npx playwright install --with-deps 安装 Playwright 及其支持的浏览器（Chromium、Firefox 和 WebKit）以及运行这些浏览器所需的系统依赖。
+# --with-deps 标志确保所有必要的系统库都被安装（如 libgtk、libgconf 等），避免在运行 Playwright 时因缺少库而出错。
 RUN npx -y playwright install --with-deps
 
 COPY ./ /app/

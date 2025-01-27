@@ -1,5 +1,12 @@
 name: Latest Changes
 
+# 这个工作流在以下两种情况触发：
+# 1.pull_request_target 事件：当针对 master 分支的 pull request 被关闭时触发。
+#   •branches: master 表示触发的 PR 目标分支是 master。
+#   •types: closed 表示只在 PR 被关闭时触发这个工作流（包括合并和关闭的情况）。
+# 2.workflow_dispatch 事件：允许手动触发工作流，并且有两个输入：
+#   •number：PR 的编号，作为手动触发时的输入。
+#   •debug_enabled：是否启用 tmate 调试，默认为 false，并且是可选的。
 on:
   pull_request_target:
     branches:
@@ -15,21 +22,34 @@ on:
         description: "Run the build with tmate debugging enabled (https://github.com/marketplace/actions/debugging-with-tmate)"
         required: false
         default: "false"
-
+# 工作流的作业 (Jobs)
+#   •latest-changes 是工作流中的作业（job）名，运行在 ubuntu-latest 的虚拟机环境中。
+#   •permissions：为此作业设置了 GitHub API 权限，允许访问 PR 信息（读取权限）。
 jobs:
   latest-changes:
     runs-on: ubuntu-latest
     permissions:
       pull-requests: read
+
     steps:
+      # •这一步将 GitHub 上下文信息（包括有关 PR 和工作流的信息）打印出来，帮助调试和查看工作流的上下文环境。
+	    # •toJson(github) 把 GitHub 上下文转换为 JSON 格式，并将其存储在环境变量 GITHUB_CONTEXT 中。  
       - name: Dump GitHub context
         env:
           GITHUB_CONTEXT: ${{ toJson(github) }}
         run: echo "$GITHUB_CONTEXT"
+      # •这一步使用 actions/checkout Action 来检出代码，允许工作流访问代码仓库。
+	    # •通过 token 传递了名为 LATEST_CHANGES 的 GitHub secret。这是一个个人访问令牌（Personal Access Token），用于允许工作流向主分支提交更改。是你自己创建的 GitHub personal access token（PAT），用于执行需要特定权限的操作（如推送到受保护的分支）。  
       - uses: actions/checkout@v4
         with:
-          # To allow latest-changes to commit to the main branch
           token: ${{ secrets.LATEST_CHANGES }}
+      # •这一部分使用了第三方的 latest-changes GitHub Action，由 tiangolo 提供。
+	    # •token: ${{ secrets.GITHUB_TOKEN }}：提供 GitHub Token，用于访问 GitHub API。GITHUB_TOKEN 是由 GitHub 自动创建和管理的，主要用于当前仓库内的基本操作（如提交、获取仓库信息等）。
+	    # •latest_changes_file: ./release-notes.md：指定存放最新变更的 Markdown 文件路径，这里是 ./release-notes.md。
+	    # •latest_changes_header: "## Latest Changes"：设置变更部分的标题。
+	    # •end_regex: "^## "：设置正则表达式，表示哪些内容是变更的结束标记。这个表达式会找到以 ## 开头的内容。
+	    # •debug_logs: true：启用调试日志，以便你可以查看详细的日志输出。
+	    # •label_header_prefix: "### "：设置变更列表中每个项的标题前缀，这里是 ###。    
       - uses: tiangolo/latest-changes@0.3.2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}

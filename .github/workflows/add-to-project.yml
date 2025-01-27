@@ -2,6 +2,8 @@ name: Add to Project
 
 on:
   pull_request_target:
+  # issues: 监听 issue 相关的事件。opened: 当有人在你的仓库中创建新的 issue 时触发。reopened: 当一个已关闭的 issue 被重新打开时触发。
+  # 启用issues: 进入仓库 > Settings（设置） > General（常规） > Features（功能） > 勾选 Issues > 此刻在仓库中可以看大Issues选项卡
   issues:
     types:
       - opened
@@ -12,7 +14,9 @@ jobs:
     name: Add to project
     runs-on: ubuntu-latest
     steps:
+    #使用了一个名为 actions/add-to-project 的第三方 GitHub Action（版本 1.0.2），该 Action 的功能是将 Issue 或 PR 添加到指定的项目板中。
       - uses: actions/add-to-project@v1.0.2
         with:
-          project-url: https://github.com/orgs/fastapi/projects/2
+          # 指定目标项目板的 URL。
+          project-url: https://github.com/users/VisaZhou/projects/1
           github-token: ${{ secrets.PROJECTS_TOKEN }}
