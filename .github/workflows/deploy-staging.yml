@@ -27,6 +27,7 @@ jobs:
       SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
       EMAILS_FROM_EMAIL: ${{ secrets.EMAILS_FROM_EMAIL }}
       POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+      # 你需要在应用程序的配置中设置 SENTRY_DSN，这样应用程序的错误、异常或性能数据就可以发送到 Sentry 进行监控和分析。
       SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
     steps:
     # 检出仓库代码到运行环境，使后续步骤可以使用代码文件。
