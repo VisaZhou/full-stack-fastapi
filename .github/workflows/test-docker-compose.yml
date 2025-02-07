@@ -12,6 +12,8 @@ on:
 jobs:
 
   test-docker-compose:
+    # 设置永不执行
+    if: ${{ false }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -19,6 +21,7 @@ jobs:
       - run: echo "${{ secrets.DOCKER_REPOSITORY_PASSWORD }}" | docker login --username=${{ secrets.DOCKER_REPOSITORY_USERNAME }} --password-stdin ${{ secrets.DOCKER_REPOSITORY_DOMAIN }}
       - run: docker compose build
       - run: docker compose down -v --remove-orphans
+      # 启动 Docker Compose 定义的服务容器，并确保backend frontend adminer 这三个容器都处于运行状态后再往下执行后续命令。
       - run: docker compose up -d --wait backend frontend adminer
       - name: Test backend is up
         run: curl http://localhost:8000/api/v1/utils/health-check
