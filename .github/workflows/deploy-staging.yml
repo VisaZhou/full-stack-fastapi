@@ -34,5 +34,6 @@ jobs:
     # 检出仓库代码到运行环境，使后续步骤可以使用代码文件。
       - name: Checkout
         uses: actions/checkout@v4
+      - run: echo "${{ secrets.DOCKER_REPOSITORY_PASSWORD }}" | docker login --username=${{ secrets.DOCKER_REPOSITORY_USERNAME }} --password-stdin ${{ secrets.DOCKER_REPOSITORY_DOMAIN }}
       - run: docker-compose -f docker-compose.yml --project-name ${{ secrets.STACK_NAME_STAGING }} build
       - run: docker-compose -f docker-compose.yml --project-name ${{ secrets.STACK_NAME_STAGING }} up -d

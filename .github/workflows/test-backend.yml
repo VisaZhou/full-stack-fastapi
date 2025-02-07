@@ -24,6 +24,7 @@ jobs:
         with:
           version: "0.4.15"
           enable-cache: true
+      - run: echo "${{ secrets.DOCKER_REPOSITORY_PASSWORD }}" | docker login --username=${{ secrets.DOCKER_REPOSITORY_USERNAME }} --password-stdin ${{ secrets.DOCKER_REPOSITORY_DOMAIN }}
       - run: docker compose down -v --remove-orphans
       - run: docker compose up -d db mailcatcher
       - name: Migrate DB

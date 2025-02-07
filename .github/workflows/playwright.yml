@@ -6,8 +6,16 @@ on:
     - master
   pull_request:
     types:
+    # 创建新的 PR。
     - opened
+    #  当 PR 的代码发生更新时（例如追加新的 commit）。
     - synchronize
+  # 手动触发工作流。
+  #1.进入 GitHub Actions 页面，打开项目的 GitHub 仓库 > Actions 页面。
+	#2.选择对应的工作流，找到 Playwright Tests 或配置了 workflow_dispatch 的工作流。
+	#3.点击 Run Workflow 按钮，右上角会出现一个绿色的 Run workflow 按钮。
+	#4.输入参数（可选），在弹出的界面中可以看到 debug_enabled 参数：默认为 'false'。用户可以选择修改为 'true' 来启用调试。
+	#5.点击 Run Workflow，触发工作流的运行。
   workflow_dispatch:
     inputs:
       debug_enabled:
@@ -17,13 +25,14 @@ on:
 
 jobs:
   changes:
+    # 使用 GitHub 官方提供的 云托管 Runner 来运行工作流任务。GitHub 提供免费额度。
     runs-on: ubuntu-latest
-    # Set job outputs to values from filter step
     outputs:
+    # 定义任务的输出变量 changed。changed 的值来源于 filter 步骤的输出（由 dorny/paths-filter@v3 生成）。
       changed: ${{ steps.filter.outputs.changed }}
     steps:
     - uses: actions/checkout@v4
-    # For pull requests it's not necessary to checkout the code but for the main branch it is
+    # 路径过滤器工具，用于在工作流中检测特定路径或文件是否发生了变更，从而控制任务的执行。
     - uses: dorny/paths-filter@v3
       id: filter
       with:
@@ -36,46 +45,70 @@ jobs:
             - .github/workflows/playwright.yml
 
   test-playwright:
+    # 这个Job依赖于名为changes的Job。只有当changes Job成功完成后，这个Job才会运行。
     needs:
       - changes
     if: ${{ needs.changes.outputs.changed == 'true' }}
     timeout-minutes: 60
     runs-on: ubuntu-latest
+    # 通过 matrix 策略，将测试分片为 4 个部分，每个部分都会在不同的 Runner 上运行，从而实现并行测试。
     strategy:
       matrix:
         shardIndex: [1, 2, 3, 4]
         shardTotal: [4]
+      # 设置为false表示即使其中一个分片失败，其他分片也会继续运行。如果设置为true，则一旦有一个分片失败，整个Job会立即停止。  
       fail-fast: false
     steps:
     - uses: actions/checkout@v4
+    #  使用actions/setup-node Action来设置Node.js环境，并指定使用最新的LTS（长期支持）版本。
     - uses: actions/setup-node@v4
       with:
         node-version: lts/*
+    # 使用actions/setup-python Action来设置Python环境，并指定使用Python 3.10版本。   
     - uses: actions/setup-python@v5
       with:
         python-version: '3.10'
+    # 如果工作流是通过手动触发（workflow_dispatch）并且启用了调试（debug_enabled为true），则使用mxschmitt/action-tmate Action来设置一个tmate调试会话。
+    # tmate调试会话通过 SSH 连接到远程的 GitHub Actions 工作流实例，是一个交互式的终端会话，支持多人同时连接到一个会话
+    # limit-access-to-actor: true表示只有触发工作流的用户才能访问这个调试会话。    
     - name: Setup tmate session
       uses: mxschmitt/action-tmate@v3
       if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.debug_enabled == 'true' }}
       with:
         limit-access-to-actor: true
+    # 使用astral-sh/setup-uv Action来安装uv工具，并指定版本为0.4.15。enable-cache: true表示启用缓存以加速后续的依赖安装。    
     - name: Install uv
       uses: astral-sh/setup-uv@v5
       with:
         version: "0.4.15"
         enable-cache: true
+    #  在backend目录下运行uv sync命令，同步Python依赖。    
     - run: uv sync
       working-directory: backend
+    # 在frontend目录下运行npm ci命令，安装Node.js依赖。
     - run: npm ci
       working-directory: frontend
+    # 在backend/.venv虚拟环境中运行scripts/generate-client.sh脚本，生成客户端代码。
     - run: uv run bash scripts/generate-client.sh
       env:
         VIRTUAL_ENV: backend/.venv
+    - run: echo "${{ secrets.DOCKER_REPOSITORY_PASSWORD }}" | docker login --username=${{ secrets.DOCKER_REPOSITORY_USERNAME }} --password-stdin ${{ secrets.DOCKER_REPOSITORY_DOMAIN }}
+    # 使用docker compose构建Docker镜像。    
     - run: docker compose build
+    # 停止并删除所有Docker容器、卷和孤儿容器。
     - run: docker compose down -v --remove-orphans
+    # 在Docker容器中运行Playwright测试。--fail-on-flaky-tests表示如果测试不稳定则失败，--trace=retain-on-failure表示在测试失败时保留跟踪信息，--shard用于指定当前分片。
+    # 此命令会在 Playwright 的默认配置文件中寻找测试配置：
+	  #   Playwright 配置文件： playwright.config.ts 或 playwright.config.js
+	  #   该文件定义了测试路径、测试环境、浏览器配置等。
+		#   测试文件目录：
+		#   通常为 tests/、e2e/ 或项目中定义的其他路径。
     - name: Run Playwright tests
       run: docker compose run --rm playwright npx playwright test --fail-on-flaky-tests --trace=retain-on-failure --shard=${{ matrix.shardIndex }}/${{ matrix.shardTotal }}
+    # 再次停止并删除所有Docker容器、卷和孤儿容器。  
     - run: docker compose down -v --remove-orphans
+    # 如果Job没有被取消，则使用actions/upload-artifact Action将frontend/blob-report目录中的测试报告上传为GitHub Actions的Artifact(工作流程中的输出文件,可以用于在不同的任务步骤或工作流之间共享文件，使用actions/download-artifact下载)。
+    # name指定Artifact的名称，include-hidden-files: true表示包含隐藏文件，retention-days: 1表示Artifact保留1天。
     - name: Upload blob report to GitHub Actions Artifacts
       if: ${{ !cancelled() }}
       uses: actions/upload-artifact@v4
@@ -89,7 +122,6 @@ jobs:
     needs:
       - test-playwright
       - changes
-    # Merge reports after playwright-tests, even if some shards have failed
     if: ${{ !cancelled() && needs.changes.outputs.changed == 'true' }}
     runs-on: ubuntu-latest
     steps:
@@ -100,15 +132,24 @@ jobs:
     - name: Install dependencies
       run: npm ci
       working-directory: frontend
+    # 下载之前运行的 Playwright 测试生成的 分布式报告（blob-report-*）并保存到 frontend/all-blob-reports 目录。
+	  #   pattern: blob-report-*: 只匹配以 blob-report- 开头的 Artifact。
+	  #   merge-multiple: true: 将多个 Artifact 下载到同一个目录。  
     - name: Download blob reports from GitHub Actions Artifacts
       uses: actions/download-artifact@v4
       with:
         path: frontend/all-blob-reports
         pattern: blob-report-*
         merge-multiple: true
+    # 使用 playwright merge-reports 命令将下载的 blob 报告合并为一个 HTML 报告。    
     - name: Merge into HTML Report
       run: npx playwright merge-reports --reporter html ./all-blob-reports
       working-directory: frontend
+    # 将生成的 HTML 测试报告上传为 Artifact：
+	  #   name: html-report--attempt-github.run_attempt ：使用运行次数作为报告名称的一部分。
+	  #   path: frontend/playwright-report：上传的报告目录。
+	  #   retention-days: 30：报告在 GitHub 中保留 30 天。
+	  #   include-hidden-files: true：包括隐藏文件在内。  
     - name: Upload HTML report
       uses: actions/upload-artifact@v4
       with:
@@ -117,14 +158,19 @@ jobs:
         retention-days: 30
         include-hidden-files: true
 
-  # https://github.com/marketplace/actions/alls-green#why
-  alls-green-playwright:  # This job does nothing and is only used for the branch protection
+
+  # 前端项目测试：Playwright 测试可能因环境问题失败或跳过，通过 alls-green 确保 CI 状态稳定。
+	# 分支保护：避免因为某个非关键任务失败而阻止 PR 合并。
+	# 动态判断任务状态：利用 allowed-skips 提供灵活性，不强制所有任务必须成功。      
+  alls-green-playwright:
+    # 表示无论前面的任务是否成功或失败，都会执行这个任务。    
     if: always()
     needs:
       - test-playwright
     runs-on: ubuntu-latest
     steps:
       - name: Decide whether the needed jobs succeeded or failed
+        # 检测依赖任务的状态，判断是否所有任务都成功完成。
         uses: re-actors/alls-green@release/v1
         with:
           jobs: ${{ toJSON(needs) }}

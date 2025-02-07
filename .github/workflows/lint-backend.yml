@@ -1,3 +1,4 @@
+# 在特定事件（如 push 和 pull request）中运行后端代码的 Lint 检查。
 name: Lint Backend
 
 on:
@@ -6,23 +7,33 @@ on:
       - master
   pull_request:
     types:
+      # 创建新的 PR。
       - opened
+      #  当 PR 的代码发生更新时（例如追加新的 commit）。
       - synchronize
 
 jobs:
+  # 定义作业名称。
   lint-backend:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
       - name: Set up Python
+          # 使用 setup-python action 设置 Python 环境。
         uses: actions/setup-python@v5
         with:
+          # 指定使用 Python 3.10 版本。
           python-version: "3.10"
       - name: Install uv
+      # 使用 setup-uv action 安装 uv 工具。
         uses: astral-sh/setup-uv@v5
         with:
+          # 指定安装的版本为 0.4.15。
           version: "0.4.15"
+          # true 启用缓存以加快安装速度。
           enable-cache: true
+          # 使用 uv 工具运行 bash 命令 backend/scripts/lint.sh，该脚本包含代码格式检查、静态分析等 lint 任务。
       - run: uv run bash scripts/lint.sh
+      # 指定工作目录为项目中的 backend 目录，确保 scripts/lint.sh 在正确路径下运行。
         working-directory: backend
