@@ -11,11 +11,7 @@ on:
     #  当 PR 的代码发生更新时（例如追加新的 commit）。
     - synchronize
   # 手动触发工作流。
-  # 进入 GitHub Actions 页面，打开项目的 GitHub 仓库 > Actions 页面。
-	# 选择对应的工作流，找到 Playwright Tests 或配置了 workflow_dispatch 的工作流。
-	# 点击 Run Workflow 按钮，右上角会出现一个绿色的 Run workflow 按钮。
-	# 输入参数（可选），在弹出的界面中可以看到 debug_enabled 参数：默认为 'false'。用户可以选择修改为 'true' 来启用调试。
-	# 点击 Run Workflow，触发工作流的运行。
+  # 进入 GitHub Actions 页面，点击 Run Workflow 按钮，右上角会出现一个绿色的 Run workflow 按钮。输入参数（可选），在弹出的界面中可以看到 debug_enabled 参数：默认为 'false'。用户可以选择修改为 'true' 来启用调试。
   workflow_dispatch:
     inputs:
       debug_enabled:
@@ -98,11 +94,7 @@ jobs:
     # 停止并删除所有Docker容器、卷和孤儿容器。
     - run: docker compose down -v --remove-orphans
     # 在Docker容器中运行Playwright测试。--fail-on-flaky-tests表示如果测试不稳定则失败，--trace=retain-on-failure表示在测试失败时保留跟踪信息，--shard用于指定当前分片。
-    # 此命令会在 Playwright 的默认配置文件中寻找测试配置：
-	  # Playwright 配置文件： playwright.config.ts 或 playwright.config.js
-	  # 该文件定义了测试路径、测试环境、浏览器配置等。
-		# 测试文件目录：
-		# 通常为 tests/、e2e/ 或项目中定义的其他路径。
+    # 此命令会在 Playwright 的默认配置文件中寻找测试配置： playwright.config.ts 或 playwright.config.js,该文件定义了测试路径、测试环境、浏览器配置等。测试文件目录：通常为 tests/、e2e/ 或项目中定义的其他路径。
     - name: Run Playwright tests
       run: docker compose run --rm playwright npx playwright test --fail-on-flaky-tests --trace=retain-on-failure --shard=${{ matrix.shardIndex }}/${{ matrix.shardTotal }}
     # 再次停止并删除所有Docker容器、卷和孤儿容器。  
@@ -132,9 +124,7 @@ jobs:
     - name: Install dependencies
       run: npm ci
       working-directory: frontend
-    # 下载之前运行的 Playwright 测试生成的 分布式报告（blob-report-*）并保存到 frontend/all-blob-reports 目录。
-	  # pattern: blob-report-*: 只匹配以 blob-report- 开头的 Artifact。
-	  # merge-multiple: true: 将多个 Artifact 下载到同一个目录。  
+    # 下载之前运行的 Playwright 测试生成的 分布式报告（blob-report-*）并保存到 frontend/all-blob-reports 目录。pattern: blob-report-*: 只匹配以 blob-report- 开头的 Artifact。merge-multiple: true: 将多个 Artifact 下载到同一个目录。  
     - name: Download blob reports from GitHub Actions Artifacts
       uses: actions/download-artifact@v4
       with:
@@ -145,11 +135,7 @@ jobs:
     - name: Merge into HTML Report
       run: npx playwright merge-reports --reporter html ./all-blob-reports
       working-directory: frontend
-    # 将生成的 HTML 测试报告上传为 Artifact：
-	  # name: html-report--attempt-github.run_attempt ：使用运行次数作为报告名称的一部分。
-	  # path: frontend/playwright-report：上传的报告目录。
-	  # retention-days: 30：报告在 GitHub 中保留 30 天。
-	  # include-hidden-files: true：包括隐藏文件在内。  
+    # 将生成的 HTML 测试报告上传为 Artifact, name: html-report--attempt-github.run_attempt ：使用运行次数作为报告名称的一部分。path: frontend/playwright-report：上传的报告目录。retention-days: 30：报告在 GitHub 中保留 30 天。include-hidden-files: true：包括隐藏文件在内。  
     - name: Upload HTML report
       uses: actions/upload-artifact@v4
       with:
@@ -159,9 +145,7 @@ jobs:
         include-hidden-files: true
 
 
-  # 前端项目测试：Playwright 测试可能因环境问题失败或跳过，通过 alls-green 确保 CI 状态稳定。
-	# 分支保护：避免因为某个非关键任务失败而阻止 PR 合并。
-	# 动态判断任务状态：利用 allowed-skips 提供灵活性，不强制所有任务必须成功。      
+  # 前端项目测试：Playwright 测试可能因环境问题失败或跳过，通过 alls-green 确保 CI 状态稳定。分支保护：避免因为某个非关键任务失败而阻止 PR 合并。动态判断任务状态：利用 allowed-skips 提供灵活性，不强制所有任务必须成功。      
   alls-green-playwright:
     # 表示无论前面的任务是否成功或失败，都会执行这个任务。    
     if: always()

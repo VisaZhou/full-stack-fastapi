@@ -4,5 +4,8 @@ from fastapi.testclient import TestClient
 
 from app.tests.utils.utils import get_superuser_token_headers
 
+
 def test_superuser_token_headers(client: TestClient) -> dict[str, str]:
-    return get_superuser_token_headers(client)
+    headers = get_superuser_token_headers(client)
+    assert "Authorization" in headers
+    assert headers["Authorization"].startswith("Bearer ")
