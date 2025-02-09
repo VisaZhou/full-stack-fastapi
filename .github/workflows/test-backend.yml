@@ -32,6 +32,7 @@ jobs:
         run: uv run bash scripts/prestart.sh
         working-directory: backend
       - name: Run tests
+        # 生成的测试报告的名称为 "Coverage for 当前运行的 Git commit SHA 哈希值（40 位的字符串）。"
         run: uv run bash scripts/tests-start.sh "Coverage for ${{ github.sha }}"
         working-directory: backend
       - run: docker compose down -v --remove-orphans
